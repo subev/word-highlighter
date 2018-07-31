@@ -1,20 +1,16 @@
 import Mark from 'mark.js';
 import { fromEvent } from 'rxjs';
-import { filter, map, mapTo, mergeMap, concatMap, first, last, takeUntil } from 'rxjs/operators';
+import { filter, map, mapTo, distinctUntilChanged, debounceTime, switchMap } from 'rxjs/operators';
+
+const onSelectEnabled = true;
 
 const log = (x) => {
-  console.log(x, new Date());
+  console.log(x);
   return x;
 };
 
-const getRange = () => window.getSelection().getRangeAt(0);
+const selection = () => window.getSelection().toString();
 const escapeRegExp = text => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-
-const restoreSelection = (range) => {
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-};
 
 const isSameContainer = range => (
   (range.startContainer === range.commonAncestorContainer)
@@ -24,41 +20,34 @@ const isSameContainer = range => (
 const instance = new Mark(document.querySelectorAll('div,a,span,p,td,code'));
 const clearMark = () => instance.unmark({});
 
-const highlight = () => {
-  const savedRange = getRange();
-  if (!isSameContainer(savedRange)) {
-    // complex ranges are not supported
-    return;
-  }
-  const selectedText = window.getSelection().toString().trim();
-  console.log('HIGHLIGHT', selectedText);
+const highlight = (text) => {
+  console.log('HIGHLIGHT', `'${text}'`);
   clearMark();
-  instance.markRegExp(new RegExp(escapeRegExp(selectedText), 'g'), {
+  instance.markRegExp(new RegExp(escapeRegExp(text), 'g'), {
     iframes: false,
     debug: true
   });
-  restoreSelection(savedRange);
 };
-
-fromEvent(document, 'dblclick')
-  .pipe(filter(({ target }) => !(target instanceof HTMLInputElement)))
-  .subscribe(highlight);
 
 fromEvent(document, 'keyup')
   .pipe(filter(me => me.keyCode === 27))
   .subscribe(clearMark);
 
-fromEvent(document, 'selectionchange')
-  .pipe(
-    // normal clicks that have no selection are also considered selections
-    filter(() => window.getSelection().toString()),
-    concatMap(sc =>
-      fromEvent(document, 'mouseup')
-      .pipe(first(), mapTo(sc))
+if (onSelectEnabled) {
+  fromEvent(document, 'selectionchange')
+    .pipe(
+      map(selection),
+      debounceTime(200),
+      distinctUntilChanged(),
     )
-  )
-  .pipe(
-    map(getRange),
-    filter(isSameContainer),
-  )
-  .subscribe(highlight);
+    .subscribe(highlight);
+} else {
+  const doubleClicks = fromEvent(document, 'dblclick');
+  doubleClicks
+    .pipe(
+      filter(e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)),
+      map(selection),
+      distinctUntilChanged(),
+    )
+    .subscribe(highlight);
+}
