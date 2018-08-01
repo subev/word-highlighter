@@ -1,23 +1,19 @@
 {
   "version": "0.0.0",
-  "name": "react-chrome-extension-example",
+  "name": "word-highlighter-extension-dev",
   "manifest_version": 2,
-  "description": "Example for react-chrome-extension-boilerplate",
+  "description": "Simple addon to highlight matching words after double clicking on them",
   "browser_action": {
-    "default_title": "React Chrome Extension Example",
-    "default_popup": "popup.html"
+    "default_title": "Word Highlighter"
   },
   "icons": {
     "16": "img/icon-16.png",
     "48": "img/icon-48.png",
     "128": "img/icon-128.png"
   },
-  "web_accessible_resources": [
-    "inject.html"
-  ],
   "background": {
     "page": "background.html"
   },
-  "permissions": [ "activeTab", "contextMenus", "management", "tabs", "storage", "<all_urls>" ],
+  "permissions": [ "tabs", "<all_urls>" ],
   "content_security_policy": "default-src 'self'; script-src 'self' http://localhost:3000 https://localhost:3000 'unsafe-eval'; connect-src http://localhost:3000 https://localhost:3000; style-src * 'unsafe-inline' 'self' blob:; img-src 'self' data:;"
 }

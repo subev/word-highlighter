@@ -10,7 +10,6 @@ const hotScript = 'webpack-hot-middleware/client?path=__webpack_hmr&dynamicPubli
 const baseDevConfig = () => ({
   devtool: 'eval-cheap-module-source-map',
   entry: {
-    todoapp: [customPath, hotScript, path.join(__dirname, '../chrome/extension/todoapp')],
     background: [customPath, hotScript, path.join(__dirname, '../chrome/extension/background')],
   },
   devMiddleware: {
@@ -48,22 +47,7 @@ const baseDevConfig = () => ({
     rules: [{
       test: /\.js$/,
       loader: 'babel-loader',
-      exclude: /node_modules/,
-      options: {
-        presets: ['react-hmre']
-      }
-    }, {
-      test: /\.css$/,
-      use: [
-        'style-loader',
-        'css-loader?modules&sourceMap&importLoaders=1&localIdentName=[name]__[local]___[hash:base64:5]',
-        {
-          loader: 'postcss-loader',
-          options: {
-            plugins: () => [autoprefixer]
-          }
-        }
-      ]
+      exclude: /node_modules/
     }]
   }
 });
