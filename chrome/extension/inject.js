@@ -1,71 +1,73 @@
 import Mark from 'mark.js';
 import { fromEvent, of } from 'rxjs';
-import { filter, tap, map, mapTo, distinct, distinctUntilChanged, debounceTime, switchMap, takeUntil, last } from 'rxjs/operators';
+import { filter, tap, map, delay, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 
-const onSelectEnabled = true;
+const logEnabled = false;
 
-const log = text => x => {
-  console.log(text, x);
+const log = text => tap((x) => {
+  if (logEnabled) {
+    console.log(text, x);
+  }
   return x;
-};
+});
 
 const selection = () => window.getSelection().toString();
-const clearSelection = () => window.getSelection().removeAllRanges();
 const escapeRegExp = text => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-
-const isSameContainer = range => (
-  (range.startContainer === range.commonAncestorContainer)
-    && (range.endContainer === range.commonAncestorContainer)
-);
 
 const instance = new Mark(document.querySelectorAll('div,a,span,p,td,code'));
 const clearMark = () => instance.unmark({});
 
 const highlight = (text) => {
-  console.log('HIGHLIGHT', `'${text}'`);
   clearMark();
   instance.markRegExp(new RegExp(escapeRegExp(text), 'g'), {
     iframes: false,
     debug: true
   });
 };
+const noSpecialKeyPressed = e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
 
 const docClick$ = fromEvent(document, 'click');
-const doubleClicks$ = fromEvent(document, 'dblclick');
-const selectionChange$ = fromEvent(document, 'selectionchange');
+const doubleClicks$ = fromEvent(document, 'dblclick').pipe(log('double click'));
 const keyUp$ = fromEvent(document, 'keyup');
-const keydown$ = fromEvent(document, 'keydown');
+const keyDown$ = fromEvent(document, 'keydown');
 const mouseUp$ = fromEvent(document, 'mouseup');
+const validDoubleClick$ = doubleClicks$.pipe(
+  filter(noSpecialKeyPressed)
+);
 
-const escapePress = keyUp$
+const escapePress$ = keyUp$
   .pipe(filter(me => me.keyCode === 27));
 
-escapePress
+escapePress$
   .subscribe(clearMark);
 
-//docClick$
-  //.pipe(
-    //tap(log('click')),
-    //switchMap(e => of(e).pipe(takeUntil(doubleClicks$)))
-  //)
-  //.subscribe(clearMark);
+const singleClick$ = docClick$
+  .pipe(
+    filter(noSpecialKeyPressed),
+    switchMap(e => of(e).pipe(
+      delay(300),
+      takeUntil(doubleClicks$)
+    ))
+  );
 
-keydown$
+singleClick$
+  .subscribe(clearMark);
+
+keyDown$
   .pipe(
     filter(e => e.altKey),
-    switchMap(() => selectionChange$.pipe(
-      takeUntil(mouseUp$),
-      last(),
-    )),
+    switchMap(() => mouseUp$.pipe(takeUntil(keyUp$))),
     map(selection),
     distinctUntilChanged()
   )
   .subscribe(highlight);
 
-doubleClicks$
+validDoubleClick$
   .pipe(
-    filter(e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)),
     map(selection),
-    distinctUntilChanged()
+    filter(x => x.trim()),
+    distinctUntilChanged(),
+    // this forces unique until flush occurs
+    //distinct(x => x, merge(escapePress$, singleClick$))
   )
   .subscribe(highlight);
