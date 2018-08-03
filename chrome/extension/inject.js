@@ -1,6 +1,6 @@
 import Mark from 'mark.js';
 import { fromEvent, of } from 'rxjs';
-import { filter, tap, map, delay, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
+import { filter, tap, map, mapTo, delay, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 
 const logEnabled = false;
 
@@ -18,6 +18,7 @@ const instance = new Mark(document.querySelectorAll('div,a,span,p,td,code'));
 const clearMark = () => instance.unmark({});
 
 const highlight = (text) => {
+  //console.log(`highlight for '${text}'`);
   clearMark();
   instance.markRegExp(new RegExp(escapeRegExp(text), 'g'), {
     iframes: false,
@@ -26,12 +27,13 @@ const highlight = (text) => {
 };
 const noSpecialKeyPressed = e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
 
-const docClick$ = fromEvent(document, 'click');
-const doubleClicks$ = fromEvent(document, 'dblclick').pipe(log('double click'));
+const doubleClick$ = fromEvent(document, 'dblclick');
 const keyUp$ = fromEvent(document, 'keyup');
 const keyDown$ = fromEvent(document, 'keydown');
+const mouseDown$ = fromEvent(document, 'mousedown');
 const mouseUp$ = fromEvent(document, 'mouseup');
-const validDoubleClick$ = doubleClicks$.pipe(
+const mouseMove$ = fromEvent(document, 'mousemove');
+const validDoubleClick$ = doubleClick$.pipe(
   filter(noSpecialKeyPressed)
 );
 
@@ -41,18 +43,29 @@ const escapePress$ = keyUp$
 escapePress$
   .subscribe(clearMark);
 
-const singleClick$ = docClick$
+// draging is not considered click, users might want to select to copy smth while highlighted
+const noDragClick$ = mouseDown$
+  .pipe(
+    switchMap(md => mouseUp$.pipe(
+      mapTo(md),
+      takeUntil(mouseMove$)
+    )),
+  );
+
+// single click is done when no double click has been triggered
+const singleClick$ = noDragClick$
   .pipe(
     filter(noSpecialKeyPressed),
     switchMap(e => of(e).pipe(
       delay(300),
-      takeUntil(doubleClicks$)
-    ))
+      takeUntil(doubleClick$),
+    )),
   );
 
 singleClick$
   .subscribe(clearMark);
 
+// when alt down and manual selection with mouse
 keyDown$
   .pipe(
     filter(e => e.altKey),
@@ -62,6 +75,7 @@ keyDown$
   )
   .subscribe(highlight);
 
+// double click highlight
 validDoubleClick$
   .pipe(
     map(selection),
