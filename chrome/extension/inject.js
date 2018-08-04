@@ -26,6 +26,14 @@ const highlight = (text) => {
   });
 };
 const noSpecialKeyPressed = e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
+const targetIsNotElementOfTypes = ts => e => ts.every(t => !(e.target instanceof t));
+const isNotContentEditable = ({ target }) => {
+  if (target instanceof Element && target.attributes.contenteditable) {
+    return false;
+  }
+
+  return true;
+};
 
 const doubleClick$ = fromEvent(document, 'dblclick');
 const keyUp$ = fromEvent(document, 'keyup');
@@ -34,7 +42,8 @@ const mouseDown$ = fromEvent(document, 'mousedown');
 const mouseUp$ = fromEvent(document, 'mouseup');
 const mouseMove$ = fromEvent(document, 'mousemove');
 const validDoubleClick$ = doubleClick$.pipe(
-  filter(noSpecialKeyPressed)
+  filter(noSpecialKeyPressed),
+  filter(isNotContentEditable)
 );
 
 const escapePress$ = keyUp$
@@ -46,6 +55,13 @@ escapePress$
 // draging is not considered click, users might want to select to copy smth while highlighted
 const noDragClick$ = mouseDown$
   .pipe(
+    filter(
+      targetIsNotElementOfTypes([
+        HTMLInputElement,
+        HTMLButtonElement,
+        HTMLAnchorElement,
+      ])
+    ),
     switchMap(md => mouseUp$.pipe(
       mapTo(md),
       takeUntil(mouseMove$)
@@ -69,7 +85,10 @@ singleClick$
 keyDown$
   .pipe(
     filter(e => e.altKey),
-    switchMap(() => mouseUp$.pipe(takeUntil(keyUp$))),
+    switchMap(() => mouseUp$.pipe(
+      filter(isNotContentEditable),
+      takeUntil(keyUp$)
+    )),
     map(selection),
     distinctUntilChanged()
   )
