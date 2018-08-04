@@ -2,28 +2,38 @@ import Mark from 'mark.js';
 import { fromEvent, of } from 'rxjs';
 import { filter, tap, map, mapTo, delay, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 
-const logEnabled = false;
+const logEnabled = true;
+let lastSelection = '';
 
+/*eslint-disable */
 const log = text => tap((x) => {
   if (logEnabled) {
     console.log(text, x);
   }
   return x;
 });
+/*eslint-enable */
 
 const selection = () => window.getSelection().toString();
 const escapeRegExp = text => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 
 const instance = new Mark(document.querySelectorAll('div,a,span,p,td,code'));
-const clearMark = () => instance.unmark({});
+const clearMark = () => {
+  instance.unmark({});
+  lastSelection = undefined;
+};
 
 const highlight = (text) => {
-  //console.log(`highlight for '${text}'`);
+  if (text === lastSelection) {
+    return;
+  }
   clearMark();
+  //console.log(`highlight for '${text}'`);
   instance.markRegExp(new RegExp(escapeRegExp(text), 'g'), {
     iframes: false,
     debug: true
   });
+  lastSelection = text;
 };
 const noSpecialKeyPressed = e => !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
 const targetIsNotElementOfTypes = ts => e => ts.every(t => !(e.target instanceof t));
@@ -57,15 +67,15 @@ const noDragClick$ = mouseDown$
   .pipe(
     filter(
       targetIsNotElementOfTypes([
-        HTMLInputElement,
         HTMLButtonElement,
+        HTMLInputElement,
         HTMLAnchorElement,
       ])
     ),
     switchMap(md => mouseUp$.pipe(
       mapTo(md),
       takeUntil(mouseMove$)
-    )),
+    ))
   );
 
 // single click is done when no double click has been triggered
@@ -73,9 +83,9 @@ const singleClick$ = noDragClick$
   .pipe(
     filter(noSpecialKeyPressed),
     switchMap(e => of(e).pipe(
-      delay(300),
+      delay(200),
       takeUntil(doubleClick$),
-    )),
+    ))
   );
 
 singleClick$
@@ -99,8 +109,5 @@ validDoubleClick$
   .pipe(
     map(selection),
     filter(x => x.trim()),
-    distinctUntilChanged(),
-    // this forces unique until flush occurs
-    //distinct(x => x, merge(escapePress$, singleClick$))
   )
   .subscribe(highlight);
